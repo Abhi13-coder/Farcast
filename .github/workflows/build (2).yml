@@ -1,0 +1,90 @@
+name: Build FARCAST
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # android-actions/setup-android@v3 was removed: it runs `sdkmanager tools`,
+      # a package that no longer exists, which is what caused
+      # "Failed to find package 'tools'". ubuntu-latest already ships an Android
+      # SDK, so we just locate it, accept licenses and install what we need.
+      - name: Set up Android SDK (auto-detect paths)
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
+            SDK="$(find /usr/local/lib /usr/lib /opt "$HOME" -maxdepth 3 -type d -name sdk -path '*android*' 2>/dev/null | head -n1)"
+          fi
+          echo "Android SDK: $SDK"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+
+          SDKMANAGER="$(find "$SDK/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -r | head -n1)"
+          echo "sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses > /dev/null || true
+          "$SDKMANAGER" --sdk_root="$SDK" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      # Find the Gradle project instead of assuming where it lives.
+      - name: Locate Gradle project
+        run: |
+          SETTINGS="$(find . -type f \( -name settings.gradle.kts -o -name settings.gradle \) -not -path '*/node_modules/*' -not -path '*/build/*' | awk '{print length, $0}' | sort -n | head -n1 | cut -d' ' -f2-)"
+          if [ -z "$SETTINGS" ]; then echo "No settings.gradle(.kts) found"; exit 1; fi
+          PROJECT_DIR="$(cd "$(dirname "$SETTINGS")" && pwd)"
+          echo "Gradle project: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle -p "$PROJECT_DIR" :app:assembleDebug --stacktrace
+
+      - name: Run unit tests
+        run: gradle -p "$PROJECT_DIR" :app:testDebugUnitTest --stacktrace
+
+      # Collect outputs with find so no fixed path is expected.
+      - name: Collect APKs
+        if: success()
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/out/apk"
+          find "$PROJECT_DIR" -type f -name '*.apk' -path '*/outputs/*' -exec cp -v {} "$GITHUB_WORKSPACE/out/apk/" \;
+          ls -la "$GITHUB_WORKSPACE/out/apk"
+
+      - name: Collect test reports
+        if: always()
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/out/tests"
+          find "$PROJECT_DIR" -type d -path '*/build/reports/tests' -exec cp -rv {} "$GITHUB_WORKSPACE/out/tests/" \; || true
+
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: farcast-debug-apk
+          path: out/apk/*.apk
+          if-no-files-found: error
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: out/tests/
+          if-no-files-found: ignore
