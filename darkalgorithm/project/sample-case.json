@@ -1,0 +1,11 @@
+{
+  "caseId": "case-0001",
+  "title": "Infra recon — example.com (authorized)",
+  "ownerAuthorizedScope": "example.com",
+  "leads": [],
+  "sources": [
+    { "id": "src-rdap", "name": "RDAP", "kind": "PUBLIC_RECORD", "corroboratedBy": [] },
+    { "id": "src-sherlock", "name": "Sherlock", "kind": "THIRD_PARTY_API", "corroboratedBy": ["src-rdap"] }
+  ],
+  "evidence": []
+}

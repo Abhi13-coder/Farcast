@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Deliberately minimal: all real theming (color/type/shape) is
+         FarcastTheme in ui/Theme.kt. This exists only because Android
+         requires a manifest-declared theme for the window itself before
+         Compose ever runs. -->
+    <style name="Theme.Farcast" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0E1116</item>
+        <item name="android:statusBarColor">#0E1116</item>
+        <item name="android:navigationBarColor">#0E1116</item>
+    </style>
+</resources>

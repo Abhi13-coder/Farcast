@@ -1,0 +1,66 @@
+name: Build FARCAST
+
+# This is the real build this project has never actually been through.
+# Nothing in the chat that produced this codebase had Maven Central access
+# (only github.com/npm/pypi were reachable), so a handful of core files
+# were verified with a raw kotlinc + a stub for the one external annotation
+# they reference — real, but partial. This workflow runs the ACTUAL Gradle
+# build, with real dependency resolution, against every file. Push this and
+# the Actions tab will finally tell you if the whole thing compiles.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive   # needed once RE_EMU_LAB's capstone/keystone/unicorn
+                                  # submodules are added — harmless no-op until then
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # NOTE: this project has no committed Gradle wrapper (gradlew/
+      # gradlew.bat/gradle-wrapper.jar) — generating one needs a real Gradle
+      # install downloading from services.gradle.org, which wasn't reachable
+      # from the sandbox that built this project. Using setup-gradle to
+      # install Gradle directly instead of pretending a wrapper exists.
+      # Once you have Gradle locally, run `gradle wrapper --gradle-version 8.9`
+      # once and commit the result — then switch this workflow back to the
+      # standard `./gradlew` form, which is the more common/portable pattern.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Run unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
+
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: farcast-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: app/build/reports/tests/
