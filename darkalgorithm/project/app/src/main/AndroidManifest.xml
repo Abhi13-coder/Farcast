@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- FarcastVpnService (Path B whole-device routing) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Android 11+ package visibility — required for TorGateway.isOrbotInstalled()
+         to see org.torproject.android at all; without this the package query
+         silently returns "not installed" even when Orbot is present. -->
+    <queries>
+        <package android:name="org.torproject.android" />
+    </queries>
+
+    <application
+        android:name=".FarcastApplication"
+        android:allowBackup="false"
+        android:label="FARCAST"
+        android:theme="@style/Theme.Farcast"
+        android:usesCleartextTraffic="false">
+        <!-- usesCleartextTraffic=false deliberately: every real network call
+             built in this app goes out over HTTPS already; this just makes
+             that a platform-enforced guarantee instead of a convention. -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Farcast">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- FarcastVpnService — Path B whole-device routing (privacy/FarcastVpnService.kt).
+             BIND_VPN_SERVICE is a system-defined permission; this is how
+             Android verifies the service is really meant to be a VPN
+             endpoint, not an app claiming the permission for itself. -->
+        <service
+            android:name=".agent.darkalgorithm.privacy.FarcastVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+    </application>
+</manifest>
